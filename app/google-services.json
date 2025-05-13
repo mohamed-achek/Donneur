@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288597936262",
+    "project_id": "blood-196d0",
+    "storage_bucket": "blood-196d0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288597936262:android:4e7fd78ce9189d86d8a907",
+        "android_client_info": {
+          "package_name": "com.example.donneur"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1TXJABRMoAVr761oAzeP3fxqKRCIy5XE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
