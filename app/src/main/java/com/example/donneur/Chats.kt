@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,108 +41,125 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableStateListOf
+import androidx.navigation.NavType
+import androidx.navigation.compose.*
+import androidx.navigation.NavHostController
+import androidx.navigation.navArgument
 
+data class ChatDetailMessage(
+    val sender: String, // "You" or senderName
+    val text: String
+)
 
 @Composable
 fun Chats() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        ChatScreen(
-            chatMessages = listOf(
-                ChatMessage(
-                    R.drawable.profile2,
-                    "Ahmed Khemiri",
-                    "ahmed.khemiri@gmail.com",
-                    "08:45",
-                    true
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "chatList") {
+        composable("chatList") {
+            ChatScreen(
+                chatMessages = listOf(
+                    ChatMessage(
+                        R.drawable.profile2,
+                        "Ahmed Khemiri",
+                        "ahmed.khemiri@gmail.com",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post2_profile,
+                        "Sarah Ben Ali",
+                        "Yesser, merci beaucoup !",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Mouna Trabelsi",
+                        "Fichier téléchargé.",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post2_profile,
+                        "Omar Ghariani",
+                        "Voici un autre tuto si tu veux...",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Wassim Jaziri",
+                        "On travaille à distance pour le moment...",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post2_profile,
+                        "Hana Bouhlel",
+                        "On verra plus tard nchallah.",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.profile2,
+                        "Tarek Mejri",
+                        "Merci pour ton aide !",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Ines Miled",
+                        "Ahmed est une personne incroyable.",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Sami Jelassi",
+                        "Ahmed est une personne incroyable.",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Ines Miled",
+                        "Ahmed est une personne incroyable.",
+                        "08:45",
+                        true
+                    ),
+                    ChatMessage(
+                        R.drawable.post1_profile,
+                        "Ines Miled",
+                        "Ahmed est une personne incroyable.",
+                        "08:45",
+                        true
+                    ),
                 ),
-                ChatMessage(
-                    R.drawable.post2_profile,
-                    "Sarah Ben Ali",
-                    "Yesser, merci beaucoup !",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Mouna Trabelsi",
-                    "Fichier téléchargé.",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post2_profile,
-                    "Omar Ghariani",
-                    "Voici un autre tuto si tu veux...",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Wassim Jaziri",
-                    "On travaille à distance pour le moment...",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post2_profile,
-                    "Hana Bouhlel",
-                    "On verra plus tard nchallah.",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.profile2,
-                    "Tarek Mejri",
-                    "Merci pour ton aide !",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Ines Miled",
-                    "Ahmed est une personne incroyable.",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Sami Jelassi",
-                    "Ahmed est une personne incroyable.",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Ines Miled",
-                    "Ahmed est une personne incroyable.",
-                    "08:45",
-                    true
-                ),
-                ChatMessage(
-                    R.drawable.post1_profile,
-                    "Ines Miled",
-                    "Ahmed est une personne incroyable.",
-                    "08:45",
-                    true
-                ),
+                onChatClick = { message ->
+                    navController.navigate("chatDetail/${message.senderName}")
+                }
             )
-        )
+        }
+        composable(
+            "chatDetail/{senderName}",
+            arguments = listOf(navArgument("senderName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val senderName = backStackEntry.arguments?.getString("senderName") ?: ""
+            ChatDetailScreen(senderName = senderName, onBack = { navController.popBackStack() })
+        }
     }
 }
 
-
-
-
 @Composable
-fun ChatScreen(chatMessages: List<ChatMessage>) {
-    var search by rememberSaveable {
-        mutableStateOf("")
-    }
+fun ChatScreen(
+    chatMessages: List<ChatMessage>,
+    onChatClick: (ChatMessage) -> Unit
+) {
+    var search by rememberSaveable { mutableStateOf("") }
     Column (
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
     ){
         Row (
             modifier = Modifier
@@ -198,23 +216,23 @@ fun ChatScreen(chatMessages: List<ChatMessage>) {
             modifier = Modifier
         ) {
             items(chatMessages) { message ->
-                ChatItem(message)
+                ChatItem(message, onClick = { onChatClick(message) })
             }
         }
     }
 }
 
 @Composable
-fun ChatItem(message: ChatMessage) {
+fun ChatItem(message: ChatMessage, onClick: () -> Unit) {
     Button(
-        onClick = { /*TODO*/ },
+        onClick = onClick,
         shape  = RoundedCornerShape(20.dp),
         modifier= Modifier
             .fillMaxWidth()
             .height(80.dp),
-        colors = ButtonDefaults.buttonColors(  // Use default button colors
+        colors = ButtonDefaults.buttonColors(
             containerColor = Color.White,
-            contentColor = Color.Black // Set background color to white
+            contentColor = Color.Black
         )
     ) {
         Row(
@@ -294,6 +312,99 @@ fun ChatItem(message: ChatMessage) {
     }
 }
 
+// Simple chat detail screen with in-memory messages
+@Composable
+fun ChatDetailScreen(senderName: String, onBack: () -> Unit) {
+    var messageText by remember { mutableStateOf("") }
+    val messages = remember {
+        mutableStateListOf(
+            ChatDetailMessage(sender = senderName, text = "Hello!"),
+            ChatDetailMessage(sender = "You", text = "How are you?")
+        )
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(onClick = onBack, modifier = Modifier.padding(end = 8.dp)) {
+                Text("< Back")
+            }
+            Text(
+                text = senderName,
+                style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            reverseLayout = false
+        ) {
+            items(messages) { msg ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = if (msg.sender == "You") Arrangement.End else Arrangement.Start
+                ) {
+                    Column(
+                        horizontalAlignment = if (msg.sender == "You") Alignment.End else Alignment.Start
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (msg.sender == "You") Color(0xFF26A586) else Color(0xFFE0E0E0),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = msg.text,
+                                color = if (msg.sender == "You") Color.White else Color.Black
+                            )
+                        }
+                        Text(
+                            text = msg.sender,
+                            style = TextStyle(fontSize = 12.sp, color = Color.Gray),
+                            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+        // --- Message input and send button ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            OutlinedTextField(
+                value = messageText,
+                onValueChange = { messageText = it },
+                modifier = Modifier.weight(1f),
+                label = { Text("Type a message") }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (messageText.isNotBlank()) {
+                        messages.add(ChatDetailMessage(sender = "You", text = messageText))
+                        messageText = ""
+                    }
+                }
+            ) {
+                Text("Send")
+            }
+        }
+    }
+}
+
 // Define data model for chat message
 data class ChatMessage(
     val profilePic: Int, // Resource ID for profile picture
@@ -315,6 +426,8 @@ fun DisplayChats(){
                 "08:45",
                 true
             ),
-        )
+        ),
+        onChatClick = {}
     )
 }
+

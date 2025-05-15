@@ -1,5 +1,6 @@
 package com.example.donneur
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.donneur.ui.theme.BloodBondTheme
 import com.example.donneur.ui.theme.Home
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 data class BottomNavigationItem(
@@ -134,7 +136,13 @@ fun MainScreen(){
             selectedIcon = painterResource(id = R.drawable.home_filled),
             unselectedIcon = painterResource(id = R.drawable.home_outlined),
             hasNews = false,
-            fragment ={ Home()}
+            fragment ={
+                Column {
+                    Home()
+                    // Show posts below the Home content
+                    PostsList()
+                }
+            }
         ) ,
         BottomNavigationItem(
             title = "Add Post",
@@ -174,6 +182,7 @@ fun MainScreen(){
         var selectedItemsIndex by rememberSaveable {
             mutableStateOf(0)
         }
+        val context = androidx.compose.ui.platform.LocalContext.current
         ModalNavigationDrawer(
             drawerContent = {
                 ModalDrawerSheet {
@@ -280,6 +289,27 @@ fun MainScreen(){
                                     fontSize = 16.sp,
                                     modifier = Modifier
                                 )
+                                Spacer(modifier = Modifier.height(20.dp))
+                                // --- Sign Out Button ---
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        FirebaseAuth.getInstance().signOut()
+                                        val intent = Intent(context, SignIn::class.java)
+                                        context.startActivity(intent)
+                                        if (context is ComponentActivity) {
+                                            context.finish()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "Sign Out",
+                                        fontFamily = custom_fontFamily,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                         }
@@ -492,3 +522,4 @@ fun MyAppTopBar() {
 fun display(){
     MainScreen()
 }
+
