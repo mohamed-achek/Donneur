@@ -13,6 +13,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -238,6 +244,124 @@ fun PostsList(realtime: Boolean = true) {
     }
 }
 
+// --- Blood Type Compatibility Checker ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BloodTypeCompatibilityChecker() {
+    val bloodTypes = listOf(
+        "O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"
+    )
+    var expanded by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf(bloodTypes[0]) }
+
+    data class BloodCompatibility(
+        val donateTo: List<String>,
+        val receiveFrom: List<String>
+    )
+
+    val compatibility = mapOf(
+        "O-" to BloodCompatibility(
+            donateTo = listOf("O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"),
+            receiveFrom = listOf("O-")
+        ),
+        "O+" to BloodCompatibility(
+            donateTo = listOf("O+", "A+", "B+", "AB+"),
+            receiveFrom = listOf("O-", "O+")
+        ),
+        "A-" to BloodCompatibility(
+            donateTo = listOf("A-", "A+", "AB-", "AB+"),
+            receiveFrom = listOf("O-", "A-")
+        ),
+        "A+" to BloodCompatibility(
+            donateTo = listOf("A+", "AB+"),
+            receiveFrom = listOf("O-", "O+", "A-", "A+")
+        ),
+        "B-" to BloodCompatibility(
+            donateTo = listOf("B-", "B+", "AB-", "AB+"),
+            receiveFrom = listOf("O-", "B-")
+        ),
+        "B+" to BloodCompatibility(
+            donateTo = listOf("B+", "AB+"),
+            receiveFrom = listOf("O-", "O+", "B-", "B+")
+        ),
+        "AB-" to BloodCompatibility(
+            donateTo = listOf("AB-", "AB+"),
+            receiveFrom = listOf("O-", "A-", "B-", "AB-")
+        ),
+        "AB+" to BloodCompatibility(
+            donateTo = listOf("AB+"),
+            receiveFrom = listOf("O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+")
+        )
+    )
+
+    val donateTo = compatibility[selectedType]?.donateTo ?: emptyList()
+    val receiveFrom = compatibility[selectedType]?.receiveFrom ?: emptyList()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            "Blood Type Compatibility Checker",
+            style = TextStyle(
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                fontFamily = FontFamily.Default
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = selectedType,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Select your blood type") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                bloodTypes.forEach { type ->
+                    DropdownMenuItem(
+                        text = { Text(type) },
+                        onClick = {
+                            selectedType = type
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "You can donate to:",
+            style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        )
+        Text(
+            donateTo.joinToString(", "),
+            style = TextStyle(fontSize = 15.sp),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            "You can receive from:",
+            style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        )
+        Text(
+            receiveFrom.joinToString(", "),
+            style = TextStyle(fontSize = 15.sp)
+        )
+    }
+}
+
 @Preview(
     showSystemUi = true,
     showBackground = true
@@ -245,6 +369,9 @@ fun PostsList(realtime: Boolean = true) {
 @Composable
 fun Display(){
     // PostScreen() // old preview
-    Post()
+    Column {
+        Post()
+        Spacer(modifier = Modifier.height(16.dp))
+        BloodTypeCompatibilityChecker()
+    }
 }
-

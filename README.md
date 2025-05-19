@@ -1,6 +1,6 @@
-# Blood Bond - Blood Donation App
+# Donœur - Blood Donation App
 
-Welcome to Blood Bond, a mobile application designed to connect blood donors with individuals in need of blood.
+Welcome to Donœur, a mobile application designed to connect blood donors with individuals in need of blood.
 
 ## Overview
 

@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Divider
@@ -50,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -159,11 +162,18 @@ fun MainScreen(){
             fragment = { Chats()}
         ),
         BottomNavigationItem(
+            title = "Blood Checker", // <-- Add a new tab for the checker
+            selectedIcon = painterResource(id = R.drawable.ic_blood_outlined), // You need to provide this icon
+            unselectedIcon = painterResource(id = R.drawable.ic_blood_outlined), // Use same icon for simplicity
+            hasNews = false,
+            fragment = { BloodTypeCompatibilityChecker() }
+        ),
+        BottomNavigationItem(
             title = "Profile",
             selectedIcon = painterResource(id = R.drawable.profile_filled),
             unselectedIcon = painterResource(id = R.drawable.profile_outlined),
             hasNews = false,
-            fragment = { Profile() }
+            fragment = { Profile() } // Use the enriched Profile composable
         )
     )
     // A surface container using the 'background' color from the theme
@@ -522,4 +532,3 @@ fun MyAppTopBar() {
 fun display(){
     MainScreen()
 }
-
