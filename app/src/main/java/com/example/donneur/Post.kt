@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -73,7 +74,6 @@ fun Post(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            // Pass state and callbacks down
             PostScreen(
                 postContent = postContent,
                 onPostContentChange = { postContent = it },
@@ -81,6 +81,7 @@ fun Post(
                     if (postContent.isNotBlank()) {
                         coroutineScope.launch {
                             try {
+                                // --- Posting to Firebase Realtime Database ---
                                 val database = Firebase.database
                                 val postsRef = database.getReference("posts")
                                 val newPostRef = postsRef.push()
@@ -107,7 +108,6 @@ fun Post(
                 custom_fontFamily = custom_fontFamily
             )
         }
-        // Show snackbar if message is set
         snackbarMessage?.let { message ->
             Box(
                 modifier = Modifier
@@ -121,7 +121,6 @@ fun Post(
                     Text(message)
                 }
             }
-            // Hide snackbar after a short delay
             LaunchedEffect(message) {
                 kotlinx.coroutines.delay(2000)
                 snackbarMessage = null
@@ -204,12 +203,11 @@ fun PostScreen(
 // Composable to display posts from Firebase
 @Composable
 fun PostsList(realtime: Boolean = true) {
+    // --- Reads posts from Firebase Realtime Database ---
     val posts = remember { mutableStateListOf<PostData>() }
+    val postsRef = Firebase.database.getReference("posts")
     LaunchedEffect(Unit) {
-        val database = Firebase.database
-        val postsRef = database.getReference("posts")
         if (realtime) {
-            // Listen for real-time updates
             val listener = object : com.google.firebase.database.ValueEventListener {
                 override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
                     posts.clear()
@@ -222,7 +220,6 @@ fun PostsList(realtime: Boolean = true) {
             }
             postsRef.addValueEventListener(listener)
         } else {
-            // One-time load
             postsRef.get().addOnSuccessListener { dataSnapshot ->
                 posts.clear()
                 dataSnapshot.children.forEach { child ->
@@ -233,13 +230,23 @@ fun PostsList(realtime: Boolean = true) {
         }
     }
     Column {
-        posts.forEach { post ->
-            Text(
-                text = post.content,
+        posts.reversed().forEach { post ->
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp)
-            )
+                    .padding(8.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = post.content,
+                    modifier = Modifier
+                        .padding(16.dp),
+                    style = TextStyle(
+                        fontFamily = FontFamily.Default,
+                        fontSize = 16.sp
+                    )
+                )
+            }
         }
     }
 }

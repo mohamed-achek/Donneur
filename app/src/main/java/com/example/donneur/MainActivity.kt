@@ -18,13 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Divider
@@ -52,7 +50,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -143,7 +140,7 @@ fun MainScreen(){
                 Column {
                     Home()
                     // Show posts below the Home content
-                    PostsList()
+                    PostsList() // This will show the posts in the Home tab
                 }
             }
         ) ,
@@ -186,7 +183,7 @@ fun MainScreen(){
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        //this may create a confusion we have these values to stablish the navigaton drawer
+        //this may create a confusion we have these values to establish the navigation drawer
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
         var selectedItemsIndex by rememberSaveable {
@@ -238,9 +235,9 @@ fun MainScreen(){
                                     },
                                     selected = index == selectedItemIndex,
                                     onClick = {
-                                        //basically we are appling that when we click on this drawer item its is selected than the navigation bar closes and the staate has its value
+                                        //basically we are applying that when we click on this drawer item its is selected than the navigation bar closes and the state has its value
                                         //part of applying the navigation drawer
-                                        //navController.navigate(items.routine)  - if want to stablish the screen to be opened
+                                        //navController.navigate(items.routine)  - if want to establish the screen to be opened
                                         selectedItemIndex = index
                                         scope.launch {
                                             drawerState.close()

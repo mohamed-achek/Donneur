@@ -17,11 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +49,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.Calendar
 
 @Composable
 fun Profile(){
@@ -180,9 +184,18 @@ fun DonationEligibilityTracker() {
     var loading by remember { mutableStateOf(true) }
     var donationData by remember { mutableStateOf<DonationData?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var addLoading by remember { mutableStateOf(false) }
+
+    // --- Add Donation Data Dialog State ---
+    var lastDonationDate by remember { mutableStateOf("") }
+    var weightKg by remember { mutableStateOf("") }
+    var hemoglobinLevel by remember { mutableStateOf("") }
+    var bloodPressure by remember { mutableStateOf("") }
+    var addError by remember { mutableStateOf<String?>(null) }
 
     // Fetch from Firestore
-    LaunchedEffect(userId) {
+    LaunchedEffect(userId, addLoading) {
         if (userId == null) {
             error = "Not signed in"
             loading = false
@@ -198,16 +211,22 @@ fun DonationEligibilityTracker() {
                 .await()
             if (doc.exists()) {
                 donationData = DonationData.fromMap(doc.data)
+                error = null
+            } else {
+                donationData = null
+                error = "No donation data found."
             }
             loading = false
         } catch (e: Exception) {
-            // Improved error handling for offline and permission errors
             error = when {
                 e.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true ->
                     "Cloud Firestore API access denied.\nPlease enable Firestore for your project in the Google Cloud Console and check your Firestore rules."
                 e.message?.contains("offline", ignoreCase = true) == true ||
                 e.message?.contains("client is offline", ignoreCase = true) == true ->
                     "Failed to load: You appear to be offline. Please check your internet connection and try again."
+                e.message?.contains("API has not been used", ignoreCase = true) == true ||
+                e.message?.contains("API is disabled", ignoreCase = true) == true ->
+                    "Cloud Firestore API is not enabled for your project. Enable it in the Google Cloud Console."
                 else ->
                     "Failed to load: ${e.message}"
             }
@@ -235,7 +254,7 @@ fun DonationEligibilityTracker() {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Loading...")
                 }
-            } else if (error != null) {
+            } else if (error != null && donationData == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -245,21 +264,111 @@ fun DonationEligibilityTracker() {
                         modifier = Modifier.weight(1f)
                     )
                 }
-                if (error?.contains("Firestore API access denied") == true) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Visit the Google Cloud Console and enable the Firestore API for your project. " +
-                        "Also check your Firestore security rules.",
-                        color = Color.Gray,
-                        fontSize = 13.sp
-                    )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { showAddDialog = true },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Add Donation Data")
                 }
-                if (error?.contains("offline", ignoreCase = true) == true) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Please check your internet connection and try again.",
-                        color = Color.Gray,
-                        fontSize = 13.sp
+                // --- Add Donation Data Dialog ---
+                if (showAddDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAddDialog = false },
+                        title = { Text("Add Donation Data") },
+                        text = {
+                            Column {
+                                OutlinedTextField(
+                                    value = lastDonationDate,
+                                    onValueChange = { lastDonationDate = it },
+                                    label = { Text("Last Donation Date (yyyy-MM-dd)") },
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = weightKg,
+                                    onValueChange = { weightKg = it },
+                                    label = { Text("Weight (kg)") },
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = hemoglobinLevel,
+                                    onValueChange = { hemoglobinLevel = it },
+                                    label = { Text("Hemoglobin (g/dL)") },
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = bloodPressure,
+                                    onValueChange = { bloodPressure = it },
+                                    label = { Text("Blood Pressure") },
+                                    singleLine = true
+                                )
+                                if (addError != null) {
+                                    Text(addError ?: "", color = Color.Red)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    addLoading = true
+                                    addError = null
+                                    // Validate and save
+                                    try {
+                                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                        val date = sdf.parse(lastDonationDate)
+                                        if (date == null) {
+                                            addError = "Invalid date format"
+                                            addLoading = false
+                                            return@TextButton
+                                        }
+                                        val weight = weightKg.toFloatOrNull()
+                                        val hemo = hemoglobinLevel.toFloatOrNull()
+                                        if (weight == null || hemo == null) {
+                                            addError = "Invalid weight or hemoglobin"
+                                            addLoading = false
+                                            return@TextButton
+                                        }
+                                        val data = hashMapOf(
+                                            "lastDonationDate" to com.google.firebase.Timestamp(date),
+                                            "weightKg" to weight,
+                                            "hemoglobinLevel" to hemo,
+                                            "bloodPressure" to bloodPressure,
+                                            "nextEligibleDate" to null,
+                                            "eligible" to null
+                                        )
+                                        FirebaseFirestore.getInstance()
+                                            .collection("users")
+                                            .document(userId!!)
+                                            .collection("donationData")
+                                            .document("latest")
+                                            .set(data)
+                                            .addOnSuccessListener {
+                                                showAddDialog = false
+                                                addLoading = false
+                                                // Clear fields
+                                                lastDonationDate = ""
+                                                weightKg = ""
+                                                hemoglobinLevel = ""
+                                                bloodPressure = ""
+                                            }
+                                            .addOnFailureListener { e ->
+                                                addError = "Failed to save: ${e.message}"
+                                                addLoading = false
+                                            }
+                                    } catch (e: Exception) {
+                                        addError = "Error: ${e.message}"
+                                        addLoading = false
+                                    }
+                                }
+                            ) {
+                                Text("Save")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAddDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
                     )
                 }
             } else if (donationData != null) {
@@ -334,8 +443,9 @@ fun DonationEligibilityTracker() {
                     "Blood Pressure: ${donationData!!.bloodPressure ?: "?"}",
                     fontSize = 14.sp
                 )
-            } else {
-                Text("No donation data found.", color = Color.Gray)
+            } else if (error != null) {
+                // fallback for other errors
+                Text(error ?: "", color = Color.Red)
             }
         }
     }
