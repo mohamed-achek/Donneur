@@ -1,5 +1,6 @@
 package com.example.donneur
 
+// ...existing imports...
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +18,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,131 +40,215 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.mutableStateListOf
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
-import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+
+data class ChatMessage(
+    val profilePic: Int = R.drawable.profile2,
+    val senderName: String = "",
+    val content: String = "",
+    val timestamp: String = "",
+    val isNew: Boolean = false,
+    val chatId: String = ""
+)
 
 data class ChatDetailMessage(
-    val sender: String, // "You" or senderName
-    val text: String
+    val sender: String = "",
+    val text: String = "",
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Composable
 fun Chats() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "chatList") {
-        composable("chatList") {
-            ChatScreen(
-                chatMessages = listOf(
-                    ChatMessage(
-                        R.drawable.profile2,
-                        "Ahmed Khemiri",
-                        "ahmed.khemiri@gmail.com",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post2_profile,
-                        "Sarah Ben Ali",
-                        "Yesser, merci beaucoup !",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Mouna Trabelsi",
-                        "Fichier téléchargé.",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post2_profile,
-                        "Omar Ghariani",
-                        "Voici un autre tuto si tu veux...",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Wassim Jaziri",
-                        "On travaille à distance pour le moment...",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post2_profile,
-                        "Hana Bouhlel",
-                        "On verra plus tard nchallah.",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.profile2,
-                        "Tarek Mejri",
-                        "Merci pour ton aide !",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Ines Miled",
-                        "Ahmed est une personne incroyable.",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Sami Jelassi",
-                        "Ahmed est une personne incroyable.",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Ines Miled",
-                        "Ahmed est une personne incroyable.",
-                        "08:45",
-                        true
-                    ),
-                    ChatMessage(
-                        R.drawable.post1_profile,
-                        "Ines Miled",
-                        "Ahmed est une personne incroyable.",
-                        "08:45",
-                        true
-                    ),
-                ),
-                onChatClick = { message ->
-                    navController.navigate("chatDetail/${message.senderName}")
+    val user = FirebaseAuth.getInstance().currentUser
+    val userId = user?.uid
+    val chatList = remember { mutableStateListOf<ChatMessage>() }
+    val db = FirebaseDatabase.getInstance().reference
+
+    // --- New Chat Dialog State ---
+    var showNewChatDialog by remember { mutableStateOf(false) }
+    var newChatEmail by remember { mutableStateOf("") }
+    var newChatError by remember { mutableStateOf<String?>(null) }
+    var creatingChat by remember { mutableStateOf(false) }
+
+    // Load chat list for current user
+    LaunchedEffect(userId) {
+        if (userId == null) return@LaunchedEffect
+        db.child("userChats").child(userId)
+            .addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    chatList.clear()
+                    snapshot.children.forEach { chatSnap ->
+                        val chatId = chatSnap.key ?: return@forEach
+                        val chatData = chatSnap.getValue(ChatMessage::class.java)
+                        if (chatData != null) {
+                            chatList.add(chatData.copy(chatId = chatId))
+                        }
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            })
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = "chatList") {
+            composable("chatList") {
+                ChatScreen(
+                    chatMessages = chatList,
+                    onChatClick = { message ->
+                        navController.navigate("chatDetail/${message.chatId}/${message.senderName}")
+                    },
+                    onNewChatClick = { showNewChatDialog = true }
+                )
+            }
+            composable(
+                "chatDetail/{chatId}/{senderName}",
+                arguments = listOf(
+                    navArgument("chatId") { type = NavType.StringType },
+                    navArgument("senderName") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+                val senderName = backStackEntry.arguments?.getString("senderName") ?: ""
+                ChatDetailScreen(chatId = chatId, senderName = senderName, onBack = { navController.popBackStack() })
+            }
+        }
+
+        // Floating Action Button to add a chat
+        FloatingActionButton(
+            onClick = { showNewChatDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Chat")
+        }
+
+        // --- New Chat Dialog ---
+        if (showNewChatDialog) {
+            AlertDialog(
+                onDismissRequest = { showNewChatDialog = false },
+                title = { Text("Start New Chat") },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = newChatEmail,
+                            onValueChange = { newChatEmail = it },
+                            label = { Text("Recipient Email") }
+                        )
+                        if (newChatError != null) {
+                            Text(newChatError ?: "", color = Color.Red)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (newChatEmail.isBlank()) {
+                                newChatError = "Email required"
+                                return@TextButton
+                            }
+                            creatingChat = true
+                            newChatError = null
+                            // --- Find user by email in Firebase Database ---
+                            val usersRef = db.child("users")
+                            usersRef.orderByChild("email").equalTo(newChatEmail)
+                                .get().addOnSuccessListener { snapshot ->
+                                    if (snapshot.exists()) {
+                                        val recipientEntry = snapshot.children.first()
+                                        val recipientId = recipientEntry.key ?: ""
+                                        val recipientName = recipientEntry.child("name").getValue(String::class.java) ?: newChatEmail
+                                        val chatId = if (userId!! < recipientId) "${userId}_$recipientId" else "${recipientId}_$userId"
+                                        val chatData = ChatMessage(
+                                            profilePic = R.drawable.profile2,
+                                            senderName = recipientName,
+                                            content = "",
+                                            timestamp = "",
+                                            isNew = false,
+                                            chatId = chatId
+                                        )
+                                        // Add chat for both users
+                                        db.child("userChats").child(userId).child(chatId).setValue(chatData)
+                                        db.child("userChats").child(recipientId).child(chatId).setValue(
+                                            chatData.copy(senderName = user?.displayName ?: "You")
+                                        )
+                                        showNewChatDialog = false
+                                        newChatEmail = ""
+                                        creatingChat = false
+                                    } else {
+                                        newChatError = "User not found"
+                                        creatingChat = false
+                                    }
+                                }.addOnFailureListener {
+                                    newChatError = "Failed to search user"
+                                    creatingChat = false
+                                }
+                        }
+                    ) {
+                        Text(if (creatingChat) "Creating..." else "Create")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNewChatDialog = false }) {
+                        Text("Cancel")
+                    }
                 }
             )
         }
-        composable(
-            "chatDetail/{senderName}",
-            arguments = listOf(navArgument("senderName") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val senderName = backStackEntry.arguments?.getString("senderName") ?: ""
-            ChatDetailScreen(senderName = senderName, onBack = { navController.popBackStack() })
-        }
     }
+}
+
+fun startChatWithUser(
+    myUserId: String,
+    myDisplayName: String,
+    recipientId: String,
+    recipientName: String,
+    onChatReady: (chatId: String, recipientName: String) -> Unit
+) {
+    val db = FirebaseDatabase.getInstance().reference
+    val chatId = if (myUserId < recipientId) "${myUserId}_$recipientId" else "${recipientId}_$myUserId"
+    val chatDataForMe = ChatMessage(
+        profilePic = R.drawable.profile2,
+        senderName = recipientName,
+        content = "",
+        timestamp = "",
+        isNew = false,
+        chatId = chatId
+    )
+    val chatDataForThem = ChatMessage(
+        profilePic = R.drawable.profile2,
+        senderName = myDisplayName,
+        content = "",
+        timestamp = "",
+        isNew = false,
+        chatId = chatId
+    )
+    db.child("userChats").child(myUserId).child(chatId).setValue(chatDataForMe)
+    db.child("userChats").child(recipientId).child(chatId).setValue(chatDataForThem)
+    onChatReady(chatId, recipientName)
 }
 
 @Composable
 fun ChatScreen(
     chatMessages: List<ChatMessage>,
-    onChatClick: (ChatMessage) -> Unit
+    onChatClick: (ChatMessage) -> Unit,
+    onNewChatClick: () -> Unit
 ) {
     var search by rememberSaveable { mutableStateOf("") }
     Column (
@@ -185,7 +278,6 @@ fun ChatScreen(
                     )
                 },
                 modifier = Modifier.fillMaxWidth(0.67f),
-
             )
             Spacer(modifier = Modifier.width(10.dp))
             ExtendedFloatingActionButton(
@@ -202,7 +294,7 @@ fun ChatScreen(
             }
             Spacer(modifier = Modifier.width(5.dp))
             ExtendedFloatingActionButton(
-                onClick = { /*TODO*/ },
+                onClick = onNewChatClick,
                 modifier = Modifier
                     .size(50.dp)
             ) {
@@ -212,11 +304,20 @@ fun ChatScreen(
                 )
             }
         }
-        LazyColumn(
-            modifier = Modifier
-        ) {
-            items(chatMessages) { message ->
-                ChatItem(message, onClick = { onChatClick(message) })
+        if (chatMessages.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No chats yet. Start a new chat!")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+            ) {
+                items(chatMessages) { message ->
+                    ChatItem(message, onClick = { onChatClick(message) })
+                }
             }
         }
     }
@@ -246,8 +347,7 @@ fun ChatItem(message: ChatMessage, onClick: () -> Unit) {
                 contentDescription = null,
                 modifier = Modifier
                     .size(55.dp)
-                    .shadow(7.dp, CircleShape),
-                contentScale = ContentScale.Crop,
+                    .clip(CircleShape),
                 alignment = Alignment.CenterStart
             )
             Row(
@@ -312,16 +412,29 @@ fun ChatItem(message: ChatMessage, onClick: () -> Unit) {
     }
 }
 
-// Simple chat detail screen with in-memory messages
 @Composable
-fun ChatDetailScreen(senderName: String, onBack: () -> Unit) {
+fun ChatDetailScreen(chatId: String, senderName: String, onBack: () -> Unit) {
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     var messageText by remember { mutableStateOf("") }
-    val messages = remember {
-        mutableStateListOf(
-            ChatDetailMessage(sender = senderName, text = "Hello!"),
-            ChatDetailMessage(sender = "You", text = "How are you?")
-        )
+    val messages = remember { mutableStateListOf<ChatDetailMessage>() }
+    val db = FirebaseDatabase.getInstance().reference
+
+    // Load messages for this chat
+    LaunchedEffect(chatId) {
+        if (chatId.isBlank()) return@LaunchedEffect
+        db.child("chats").child(chatId).child("messages")
+            .addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    messages.clear()
+                    snapshot.children.forEach { msgSnap ->
+                        val msg = msgSnap.getValue(ChatDetailMessage::class.java)
+                        if (msg != null) messages.add(msg)
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            })
     }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -350,26 +463,26 @@ fun ChatDetailScreen(senderName: String, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 2.dp),
-                    horizontalArrangement = if (msg.sender == "You") Arrangement.End else Arrangement.Start
+                    horizontalArrangement = if (msg.sender == userId) Arrangement.End else Arrangement.Start
                 ) {
                     Column(
-                        horizontalAlignment = if (msg.sender == "You") Alignment.End else Alignment.Start
+                        horizontalAlignment = if (msg.sender == userId) Alignment.End else Alignment.Start
                     ) {
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (msg.sender == "You") Color(0xFF26A586) else Color(0xFFE0E0E0),
+                                    if (msg.sender == userId) Color(0xFF26A586) else Color(0xFFE0E0E0),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .padding(10.dp)
                         ) {
                             Text(
                                 text = msg.text,
-                                color = if (msg.sender == "You") Color.White else Color.Black
+                                color = if (msg.sender == userId) Color.White else Color.Black
                             )
                         }
                         Text(
-                            text = msg.sender,
+                            text = if (msg.sender == userId) "You" else senderName,
                             style = TextStyle(fontSize = 12.sp, color = Color.Gray),
                             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp)
                         )
@@ -393,8 +506,10 @@ fun ChatDetailScreen(senderName: String, onBack: () -> Unit) {
             Spacer(modifier = Modifier.width(8.dp))
             Button(
                 onClick = {
-                    if (messageText.isNotBlank()) {
-                        messages.add(ChatDetailMessage(sender = "You", text = messageText))
+                    if (messageText.isNotBlank() && chatId.isNotBlank()) {
+                        val msg = ChatDetailMessage(sender = userId, text = messageText, timestamp = System.currentTimeMillis())
+                        val msgRef = db.child("chats").child(chatId).child("messages").push()
+                        msgRef.setValue(msg)
                         messageText = ""
                     }
                 }
@@ -404,30 +519,3 @@ fun ChatDetailScreen(senderName: String, onBack: () -> Unit) {
         }
     }
 }
-
-// Define data model for chat message
-data class ChatMessage(
-    val profilePic: Int, // Resource ID for profile picture
-    val senderName: String,
-    val content: String,
-    val timestamp: String,
-    val isNew: Boolean
-)
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun DisplayChats(){
-    ChatScreen(
-        chatMessages = listOf<ChatMessage>(
-            ChatMessage(
-                R.drawable.post1_profile,
-                "Sarah Ben Ali",
-                "Ashek is a very good person",
-                "08:45",
-                true
-            ),
-        ),
-        onChatClick = {}
-    )
-}
-

@@ -66,6 +66,7 @@ import com.example.donneur.ui.theme.BloodBondTheme
 import com.example.donneur.ui.theme.Home
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import androidx.navigation.compose.rememberNavController
 
 data class BottomNavigationItem(
     val title: String,
@@ -130,6 +131,7 @@ fun MainScreen(){
             badgeCount = 45
         )
     )
+    val navController = rememberNavController()
     val items = listOf(
         BottomNavigationItem(
             title = "Home",
@@ -139,8 +141,8 @@ fun MainScreen(){
             fragment ={
                 Column {
                     Home()
-                    // Show posts below the Home content
-                    PostsList() // This will show the posts in the Home tab
+                    // Pass navController to PostsList
+                    PostsList() // <-- Removed navController parameter
                 }
             }
         ) ,
@@ -522,7 +524,6 @@ fun MyAppTopBar() {
         scrollBehavior = scrollBehaviour
     )
 }
-
 
 @Preview
 @Composable

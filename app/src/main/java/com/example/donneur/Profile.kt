@@ -50,6 +50,9 @@ import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Calendar
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 
 @Composable
 fun Profile(){
@@ -82,6 +85,7 @@ fun ProfileScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState()) // <-- Make scrollable
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
