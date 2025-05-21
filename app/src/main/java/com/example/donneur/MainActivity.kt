@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,7 +49,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -62,11 +60,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.rememberNavController
 import com.example.donneur.ui.theme.BloodBondTheme
-import com.example.donneur.ui.theme.Home
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
-import androidx.navigation.compose.rememberNavController
 
 data class BottomNavigationItem(
     val title: String,
@@ -139,11 +136,8 @@ fun MainScreen(){
             unselectedIcon = painterResource(id = R.drawable.home_outlined),
             hasNews = false,
             fragment ={
-                Column {
-                    Home()
-                    // Pass navController to PostsList
-                    PostsList() // <-- Removed navController parameter
-                }
+                // --- Only show PostsList here, so posts are always up-to-date from Firestore ---
+                PostsList(custom_fontFamily = custom_fontFamily)
             }
         ) ,
         BottomNavigationItem(
@@ -203,7 +197,7 @@ fun MainScreen(){
                                 modifier = Modifier.padding(25.dp)
                             ) {
                                 Image(
-                                    painter = painterResource(id = R.drawable.profile2),
+                                    painter = painterResource(id = R.drawable.profile_photo),
                                     contentDescription = null,
                                     modifier = Modifier.size(70.dp)
                                 )
@@ -371,124 +365,65 @@ fun MainScreen(){
                     }
 
                 },
-//                bottomBar = {
-//                    Card(
-//                        modifier = Modifier
-//                            .width(350.dp)
-//                            .height(70.dp)
-//                            .padding(start = 40.dp, bottom = 10.dp),
-//                    ) {
-//                        Box (
-//                            modifier = Modifier
-//                                .fillMaxWidth(),
-//                            contentAlignment = Alignment.Center,
-//                        ){
-//                            NavigationBar(
-//                                modifier = Modifier
-//                                    .width(350.dp),
-//                                tonalElevation =10.dp,
-////                            containerColor = Color.White
-//                            ) {
-//                                items.forEachIndexed { index, item ->
-//                                    this@NavigationBar.NavigationBarItem(
-//                                        selected = selectedItemIndex == index,
-//                                        onClick = { selectedItemIndex =index },
-////                                        label = { Text(text = item.title) },
-//                                        alwaysShowLabel = false,
-//                                        icon = {
-//                                            BadgedBox(
-//                                                badge = {
-//                                                    if(item.badgeCount != null){
-//                                                        Badge{
-//                                                            Text(text = item.badgeCount.toString())
-//                                                        }
-//                                                    }else if(item.hasNews){
-//                                                        Badge()
-//                                                    }
-//                                                }
-//                                            ) {
-//                                                Icon(
-//                                                    painter = if (index == selectedItemIndex) {
-//                                                        item.selectedIcon
-//                                                    } else item.unselectedIcon,
-//                                                    contentDescription = item.title,
-//                                                    modifier = Modifier
-//                                                        .size(25.dp)
-//                                                )
-//                                            }
-//                                        }
-//                                    )
-//                                }
-//                            }
-//                        }
-//                    }
-//
-//                },
-            ){values ->
-                Box (
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(values)
-                ){
-                    items[selectedItemIndex].fragment()
-
-                    Box(
+                bottomBar = {
+                    // --- Fixed Bottom Navigation Bar ---
+                    Card(
                         modifier = Modifier
-                            .padding(bottom = 15.dp) // Adjust padding as needed
-                            .align(Alignment.BottomCenter)
-                            .shadow(0.5.dp, RoundedCornerShape(14.dp))
+                            .background(Color.White)
+                            .fillMaxWidth()
+                            .height(65.dp),
+                        shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
                     ) {
-
-                        Card(
+                        Box(
                             modifier = Modifier
                                 .background(Color.White)
-                                .width(350.dp)
-                                .height(65.dp)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Box(
+                            NavigationBar(
                                 modifier = Modifier
-                                    .background(Color.White)
                                     .fillMaxWidth(),
-                                contentAlignment = Alignment.Center,
+                                tonalElevation = 10.dp,
                             ) {
-                                NavigationBar(
-                                    modifier = Modifier
-                                        .fillMaxWidth(),
-                                    tonalElevation = 10.dp,
-                                ) {
-                                    items.forEachIndexed { index, item ->
-                                        this@NavigationBar.NavigationBarItem(
-                                            selected = selectedItemIndex == index,
-                                            onClick = { selectedItemIndex = index },
-                                            alwaysShowLabel = false,
-                                            icon = {
-                                                BadgedBox(
-                                                    badge = {
-                                                        if (item.badgeCount != null) {
-                                                            Badge {
-                                                                Text(text = item.badgeCount.toString())
-                                                            }
-                                                        } else if (item.hasNews) {
-                                                            Badge()
+                                items.forEachIndexed { index, item ->
+                                    NavigationBarItem(
+                                        selected = selectedItemIndex == index,
+                                        onClick = { selectedItemIndex = index },
+                                        alwaysShowLabel = false,
+                                        icon = {
+                                            BadgedBox(
+                                                badge = {
+                                                    if (item.badgeCount != null) {
+                                                        Badge {
+                                                            Text(text = item.badgeCount.toString())
                                                         }
+                                                    } else if (item.hasNews) {
+                                                        Badge()
                                                     }
-                                                ) {
-                                                    Icon(
-                                                        painter = if (index == selectedItemIndex) {
-                                                            item.selectedIcon
-                                                        } else item.unselectedIcon,
-                                                        contentDescription = item.title,
-                                                        modifier = Modifier
-                                                            .size(26.dp)
-                                                    )
                                                 }
+                                            ) {
+                                                Icon(
+                                                    painter = if (index == selectedItemIndex) {
+                                                        item.selectedIcon
+                                                    } else item.unselectedIcon,
+                                                    contentDescription = item.title,
+                                                    modifier = Modifier.size(26.dp)
+                                                )
                                             }
-                                        )
-                                    }
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
+                }
+            ){ values ->
+                Box (
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(values) // <-- This ensures content is above the bottom bar
+                ){
+                    items[selectedItemIndex].fragment()
                 }
             }
         }
@@ -516,7 +451,7 @@ fun MyAppTopBar() {
         actions = {
             IconButton(onClick = { /*TODO*/ }) {
                 Image(
-                    painter = painterResource(id = R.drawable.profile2),
+                    painter = painterResource(id = R.drawable.profile_photo),
                     contentDescription = null
                 )
             }

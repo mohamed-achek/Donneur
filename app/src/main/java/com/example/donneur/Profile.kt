@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -49,10 +51,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.Calendar
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.remember
-import androidx.compose.foundation.rememberScrollState
 
 @Composable
 fun Profile(){
@@ -62,7 +60,7 @@ fun Profile(){
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .align(Alignment.Center),
+                .align(Alignment.Center), // <-- Fix here
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -70,6 +68,7 @@ fun Profile(){
         }
     }
 }
+
 
 @Composable
 fun ProfileScreen() {
@@ -82,6 +81,7 @@ fun ProfileScreen() {
         Font(R.font.nunito_regular, FontWeight.Normal),
         Font(R.font.nunito_semibold , FontWeight.SemiBold)
     )
+    var showDonationHistory by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,7 +91,7 @@ fun ProfileScreen() {
     ) {
         Spacer(modifier = Modifier.height(24.dp))
         Image(
-            painter = painterResource(id = R.drawable.profile2),
+            painter = painterResource(id = R.drawable.profile_photo),
             contentDescription = "Profile Picture",
             modifier = Modifier
                 .size(110.dp)
@@ -160,7 +160,7 @@ fun ProfileScreen() {
             Text("Edit Profile", fontFamily = custom_fontFamily)
         }
         Button(
-            onClick = { /* TODO: View donation history */ },
+            onClick = { showDonationHistory = true }, // Show popup
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp),
@@ -176,6 +176,14 @@ fun ProfileScreen() {
             shape = RoundedCornerShape(20.dp)
         ) {
             Text("Settings", fontFamily = custom_fontFamily)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        // DonationHistorySection removed from here
+        if (showDonationHistory) {
+            DonationHistoryDialog(
+                custom_fontFamily = custom_fontFamily,
+                onDismiss = { showDonationHistory = false }
+            )
         }
     }
 }
@@ -499,6 +507,173 @@ fun ProfileStat(label: String, value: String) {
                 color = Color(0xFF687684)
             )
         )
+    }
+}
+
+@Composable
+fun DonationHistoryDialog(
+    custom_fontFamily: FontFamily,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Donation History",
+                style = TextStyle(
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = custom_fontFamily,
+                    fontSize = 18.sp
+                )
+            )
+        },
+        text = {
+            DonationHistorySection(custom_fontFamily)
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun DonationHistorySection(custom_fontFamily: FontFamily) {
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
+    var history by remember { mutableStateOf<List<DonationHistoryItem>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(userId) {
+        if (userId == null) {
+            error = "Not signed in"
+            loading = false
+            return@LaunchedEffect
+        }
+        try {
+            val snapshot = FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(userId)
+                .collection("donationData")
+                .get()
+                .await()
+            history = snapshot.documents.mapNotNull { doc ->
+                doc.toDonationHistoryItem()
+            }.sortedByDescending { it.date }
+            loading = false
+            error = null
+        } catch (e: Exception) {
+            error = "Failed to load donation history: ${e.message}"
+            loading = false
+        }
+    }
+
+    Text(
+        text = "Donation History",
+        style = TextStyle(
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = custom_fontFamily,
+            fontSize = 18.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Start
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+    )
+    when {
+        loading -> {
+            Text(
+                text = "Loading...",
+                style = TextStyle(
+                    fontFamily = custom_fontFamily,
+                    fontSize = 15.sp
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        error != null -> {
+            Text(
+                text = error ?: "",
+                style = TextStyle(
+                    fontFamily = custom_fontFamily,
+                    fontSize = 15.sp,
+                    color = Color.Red
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        history.isEmpty() -> {
+            Text(
+                text = "No donation history yet.",
+                style = TextStyle(
+                    fontFamily = custom_fontFamily,
+                    fontSize = 15.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        else -> {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                history.forEach { item ->
+                    DonationHistoryRow(item, custom_fontFamily)
+                }
+            }
+        }
+    }
+}
+
+data class DonationHistoryItem(
+    val date: String,
+    val bloodType: String,
+    val hemoglobin: String,
+    val bloodPressure: String,
+    val location: String
+)
+
+fun com.google.firebase.firestore.DocumentSnapshot.toDonationHistoryItem(): DonationHistoryItem? {
+    val timestamp = this.getTimestamp("lastDonationDate")
+    val dateStr = timestamp?.toDate()?.let {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(it)
+    } ?: "N/A"
+    val bloodType = this.getString("bloodType") ?: "N/A"
+    val hemoglobin = (this.getDouble("hemoglobinLevel") ?: this.get("hemoglobinLevel")?.toString()?.toDoubleOrNull())?.toString() ?: "N/A"
+    val bloodPressure = this.getString("bloodPressure") ?: "70 mmHg"
+    val location = this.getString("location") ?: "Hopital El Menzah"
+    return DonationHistoryItem(
+        date = dateStr,
+        bloodType = bloodType,
+        hemoglobin = hemoglobin,
+        bloodPressure = bloodPressure,
+        location = location
+    )
+}
+
+@Composable
+fun DonationHistoryRow(item: DonationHistoryItem, custom_fontFamily: FontFamily) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Date: ${item.date}",
+                style = TextStyle(fontWeight = FontWeight.Bold, fontFamily = custom_fontFamily, fontSize = 15.sp)
+            )
+            Text(
+                text = "Blood Type: ${item.bloodType} | Hemoglobin: ${item.hemoglobin} g/dL | BP: ${item.bloodPressure}",
+                style = TextStyle(fontFamily = custom_fontFamily, fontSize = 14.sp)
+            )
+            Text(
+                text = "Location: ${item.location}",
+                style = TextStyle(fontFamily = custom_fontFamily, fontSize = 14.sp)
+            )
+        }
     }
 }
 

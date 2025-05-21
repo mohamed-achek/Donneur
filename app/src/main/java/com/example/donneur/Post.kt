@@ -1,26 +1,35 @@
 package com.example.donneur
 
 // ...existing imports...
-import android.util.Log
+
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
-
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,23 +40,34 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.firebase.database.ktx.database
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class PostData(
     val id: String = "",
-    val content: String = ""
+    val content: String = "",
+    val author: String = "Mohamed Achek",
+    val authorTag: String = "@med_6",
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Composable
@@ -68,44 +88,131 @@ fun Post(
     )
     val coroutineScope = rememberCoroutineScope()
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF7F7F7))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            PostScreen(
-                postContent = postContent,
-                onPostContentChange = { postContent = it },
-                onPostClick = {
-                    if (postContent.isNotBlank()) {
-                        coroutineScope.launch {
-                            try {
-                                // --- Posting to Firebase Realtime Database ---
-                                val database = Firebase.database
-                                val postsRef = database.getReference("posts")
-                                val newPostRef = postsRef.push()
-                                val post = PostData(id = newPostRef.key ?: "", content = postContent)
-                                newPostRef.setValue(post)
-                                    .addOnSuccessListener {
-                                        postContent = ""
-                                        onPostCreated?.invoke()
-                                        snackbarMessage = "Post created successfully"
-                                    }
-                                    .addOnFailureListener { exception ->
-                                        Log.e("Post", "Failed to create post", exception)
-                                        onPostFailed?.invoke(exception)
-                                        snackbarMessage = "Failed to create post: ${exception.message}"
-                                    }
-                            } catch (e: Exception) {
-                                Log.e("Post", "Exception during post", e)
-                                onPostFailed?.invoke(e)
-                                snackbarMessage = "Exception: ${e.message}"
-                            }
+            // --- Post Creation Card ---
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(18.dp),
+                elevation = CardDefaults.cardElevation(6.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.profile_photo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, Color(0xFF26A586), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Mohamed Achek",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = custom_fontFamily,
+                                    fontSize = 16.sp
+                                )
+                            )
+                            Text(
+                                text = "@med_6",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Light,
+                                    fontFamily = custom_fontFamily,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF687684)
+                                )
+                            )
                         }
                     }
-                },
-                custom_fontFamily = custom_fontFamily
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = postContent,
+                        onValueChange = { postContent = it },
+                        placeholder = {
+                            Text(
+                                text = "What's on your mind?",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Normal,
+                                    fontFamily = custom_fontFamily,
+                                    color = Color.Gray
+                                )
+                            )
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                val contentToPost = postContent.trim()
+                                if (contentToPost.isNotBlank()) {
+                                    coroutineScope.launch {
+                                        try {
+                                            // --- Use Firestore for posting ---
+                                            val firestore = FirebaseFirestore.getInstance()
+                                            val postsRef = firestore.collection("posts")
+                                            val newPost = PostData(
+                                                content = contentToPost
+                                            )
+                                            postsRef.add(newPost)
+                                                .addOnSuccessListener {
+                                                    postContent = ""
+                                                    onPostCreated?.invoke()
+                                                    snackbarMessage = "Publication successful"
+                                                }
+                                                .addOnFailureListener { exception ->
+                                                    onPostFailed?.invoke(exception)
+                                                    snackbarMessage = "Failed to create post: ${exception.message}"
+                                                }
+                                        } catch (e: Exception) {
+                                            onPostFailed?.invoke(e)
+                                            snackbarMessage = "Exception: ${e.message}"
+                                        }
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.height(40.dp)
+                        ) {
+                            Text(
+                                text = "Post",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = custom_fontFamily,
+                                    fontSize = 17.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            Divider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                color = Color(0xFFEEEEEE)
             )
         }
         snackbarMessage?.let { message ->
@@ -129,125 +236,150 @@ fun Post(
     }
 }
 
-@Composable
-fun PostScreen(
-    postContent: String,
-    onPostContentChange: (String) -> Unit,
-    onPostClick: () -> Unit,
-    custom_fontFamily: FontFamily
-){
-    Column {
-        Row (
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ){
-            TextButton(onClick = { /* Do something when the button is clicked */ },
-                modifier = Modifier.height(40.dp)) {
-                Text("Cancel",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = custom_fontFamily,
-                        fontSize = 17.sp
-                    )
-                )
-            }
-            FilledTonalButton(onClick = onPostClick,
-                modifier = Modifier.height(40.dp)) {
-                Text(text ="Post",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = custom_fontFamily,
-                        fontSize = 17.sp
-                    ))
-            }
-        }
-        Row (
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
-        ){
-            Image(
-                painter = painterResource(id = R.drawable.profile2),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(45.dp)
-                    .shadow(10.dp, CircleShape)
-                    .shadow(10.dp, RoundedCornerShape(30.dp), true)
+suspend fun addExamplePostsIfNeeded() {
+    val firestore = FirebaseFirestore.getInstance()
+    val postsRef = firestore.collection("posts")
+    val snapshot = withContext(Dispatchers.IO) { postsRef.get().await() }
+    // Only add if there are no posts yet
+    if (snapshot.isEmpty) {
+        val examplePosts = listOf(
+            PostData(
+                content = "Urgent: O+ blood needed at El Menzah Hospital. Please help if you can!",
+                author = "Sarah Ben Ali",
+                authorTag = "@sarah_ba",
+                timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 2 // 2 hours ago
+            ),
+            PostData(
+                content = "Looking for A- blood donors for my father at Charles Nicolle Hospital. Please reach out if you can help.",
+                author = "Yassine Trabelsi",
+                authorTag = "@yassine_t",
+                timestamp = System.currentTimeMillis() - 1000 * 60 * 60 * 5 // 5 hours ago
             )
-            OutlinedTextField(
-                value = postContent,
-                onValueChange = onPostContentChange,
-                label = {
-                    Text(
-                        text = "Write your Post Content Here",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = custom_fontFamily,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                },
-                shape = RoundedCornerShape(15.dp),
-                minLines = 20,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 10.dp, top = 0.dp)
-                    .height(400.dp)
-            )
+        )
+        examplePosts.forEach { post ->
+            postsRef.add(post).await()
         }
     }
 }
 
-// Composable to display posts from Firebase
 @Composable
-fun PostsList(realtime: Boolean = true) {
-    // --- Reads posts from Firebase Realtime Database ---
+fun PostsList(
+    realtime: Boolean = true,
+    custom_fontFamily: FontFamily
+) {
     val posts = remember { mutableStateListOf<PostData>() }
-    val postsRef = Firebase.database.getReference("posts")
+    val firestore = FirebaseFirestore.getInstance()
+    var initialized by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        if (realtime) {
-            val listener = object : com.google.firebase.database.ValueEventListener {
-                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+        // Ensure example posts are added only once, before listening for updates
+        if (!initialized) {
+            initialized = true
+            withContext(Dispatchers.IO) {
+                addExamplePostsIfNeeded()
+            }
+        }
+        firestore.collection("posts")
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
                     posts.clear()
-                    snapshot.children.forEach { child ->
-                        val post = child.getValue(PostData::class.java)
-                        if (post != null) posts.add(post)
+                    for (doc in snapshot.documents) {
+                        doc.toObject(PostData::class.java)?.let { posts.add(it) }
                     }
                 }
-                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
             }
-            postsRef.addValueEventListener(listener)
-        } else {
-            postsRef.get().addOnSuccessListener { dataSnapshot ->
-                posts.clear()
-                dataSnapshot.children.forEach { child ->
-                    val post = child.getValue(PostData::class.java)
-                    if (post != null) posts.add(post)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        posts.sortedByDescending { it.timestamp }.forEach { post ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(3.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.White, Color(0xFFF7F7F7))
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.profile_photo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, Color(0xFF26A586), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = post.author,
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = custom_fontFamily,
+                                    fontSize = 15.sp
+                                )
+                            )
+                            Text(
+                                text = post.authorTag,
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Light,
+                                    fontFamily = custom_fontFamily,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF687684)
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = post.timestamp.toTimeAgo(),
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                color = Color(0xFF26A586),
+                                fontFamily = custom_fontFamily
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = post.content,
+                        style = TextStyle(
+                            fontFamily = custom_fontFamily,
+                            fontSize = 16.sp
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 10,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
     }
-    Column {
-        posts.reversed().forEach { post ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = post.content,
-                    modifier = Modifier
-                        .padding(16.dp),
-                    style = TextStyle(
-                        fontFamily = FontFamily.Default,
-                        fontSize = 16.sp
-                    )
-                )
-            }
-        }
+}
+
+// --- Helper function for time ago formatting ---
+fun Long.toTimeAgo(): String {
+    val now = System.currentTimeMillis()
+    val diff = now - this
+    val seconds = diff / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        days > 0 -> SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(this))
+        hours > 0 -> "$hours hour${if (hours > 1) "s" else ""} ago"
+        minutes > 0 -> "$minutes min${if (minutes > 1) "s" else ""} ago"
+        else -> "Just now"
     }
 }
 
@@ -375,7 +507,6 @@ fun BloodTypeCompatibilityChecker() {
 )
 @Composable
 fun Display(){
-    // PostScreen() // old preview
     Column {
         Post()
         Spacer(modifier = Modifier.height(16.dp))

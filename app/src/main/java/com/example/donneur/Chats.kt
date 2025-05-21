@@ -3,40 +3,16 @@ package com.example.donneur
 // ...existing imports...
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,13 +29,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.*
 
+// --- Add these data classes to resolve ChatMessage reference ---
 data class ChatMessage(
-    val profilePic: Int = R.drawable.profile2,
+    val profilePic: Int = R.drawable.profile_photo,
     val senderName: String = "",
     val content: String = "",
     val timestamp: String = "",
@@ -70,8 +44,10 @@ data class ChatMessage(
 data class ChatDetailMessage(
     val sender: String = "",
     val text: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = 0L
 )
+
+// ...existing data classes...
 
 @Composable
 fun Chats() {
@@ -87,29 +63,65 @@ fun Chats() {
     var newChatError by remember { mutableStateOf<String?>(null) }
     var creatingChat by remember { mutableStateOf(false) }
 
+    // Sample chats fallback
+    fun ensureSampleChats() {
+        if (chatList.none { it.chatId == "sample_chat_1" }) {
+            chatList.add(
+                ChatMessage(
+                    profilePic = R.drawable.post1_profile,
+                    senderName = "Sarah Ben Ali",
+                    content = "Hey! Are you available for donation?",
+                    timestamp = "09:30",
+                    isNew = true,
+                    chatId = "sample_chat_1"
+                )
+            )
+        }
+        if (chatList.none { it.chatId == "sample_chat_2" }) {
+            chatList.add(
+                ChatMessage(
+                    profilePic = R.drawable.post2_profile,
+                    senderName = "Ahmed Khemiri",
+                    content = "Thank you for your help last week!",
+                    timestamp = "Yesterday",
+                    isNew = false,
+                    chatId = "sample_chat_2"
+                )
+            )
+        }
+    }
+
     // Load chat list for current user
     LaunchedEffect(userId) {
-        if (userId == null) return@LaunchedEffect
-        db.child("userChats").child(userId)
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    chatList.clear()
-                    snapshot.children.forEach { chatSnap ->
-                        val chatId = chatSnap.key ?: return@forEach
-                        val chatData = chatSnap.getValue(ChatMessage::class.java)
-                        if (chatData != null) {
-                            chatList.add(chatData.copy(chatId = chatId))
+        chatList.clear()
+        if (userId != null) {
+            db.child("userChats").child(userId)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        chatList.clear()
+                        snapshot.children.forEach { chatSnap ->
+                            val chatId = chatSnap.key ?: return@forEach
+                            val chatData = chatSnap.getValue(ChatMessage::class.java)
+                            if (chatData != null) {
+                                chatList.add(chatData.copy(chatId = chatId))
+                            }
                         }
+                        ensureSampleChats()
                     }
-                }
-                override fun onCancelled(error: DatabaseError) {}
-            })
+                    override fun onCancelled(error: DatabaseError) {
+                        ensureSampleChats()
+                    }
+                })
+        } else {
+            ensureSampleChats()
+        }
+        ensureSampleChats()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = "chatList") {
             composable("chatList") {
-                ChatScreen(
+                ChatListScreen(
                     chatMessages = chatList,
                     onChatClick = { message ->
                         navController.navigate("chatDetail/${message.chatId}/${message.senderName}")
@@ -126,21 +138,24 @@ fun Chats() {
             ) { backStackEntry ->
                 val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
                 val senderName = backStackEntry.arguments?.getString("senderName") ?: ""
-                ChatDetailScreen(chatId = chatId, senderName = senderName, onBack = { navController.popBackStack() })
+                ChatDetailScreen(
+                    chatId = chatId,
+                    senderName = senderName,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
 
-        // Floating Action Button to add a chat
         FloatingActionButton(
             onClick = { showNewChatDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp)
+                .padding(24.dp),
+            containerColor = MaterialTheme.colorScheme.primary
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Chat")
+            Icon(Icons.Default.Add, contentDescription = "Add Chat", tint = Color.White)
         }
 
-        // --- New Chat Dialog ---
         if (showNewChatDialog) {
             AlertDialog(
                 onDismissRequest = { showNewChatDialog = false },
@@ -166,7 +181,6 @@ fun Chats() {
                             }
                             creatingChat = true
                             newChatError = null
-                            // --- Find user by email in Firebase Database ---
                             val usersRef = db.child("users")
                             usersRef.orderByChild("email").equalTo(newChatEmail)
                                 .get().addOnSuccessListener { snapshot ->
@@ -176,14 +190,13 @@ fun Chats() {
                                         val recipientName = recipientEntry.child("name").getValue(String::class.java) ?: newChatEmail
                                         val chatId = if (userId!! < recipientId) "${userId}_$recipientId" else "${recipientId}_$userId"
                                         val chatData = ChatMessage(
-                                            profilePic = R.drawable.profile2,
+                                            profilePic = R.drawable.profile_photo,
                                             senderName = recipientName,
                                             content = "",
                                             timestamp = "",
                                             isNew = false,
                                             chatId = chatId
                                         )
-                                        // Add chat for both users
                                         db.child("userChats").child(userId).child(chatId).setValue(chatData)
                                         db.child("userChats").child(recipientId).child(chatId).setValue(
                                             chatData.copy(senderName = user?.displayName ?: "You")
@@ -214,109 +227,57 @@ fun Chats() {
     }
 }
 
-fun startChatWithUser(
-    myUserId: String,
-    myDisplayName: String,
-    recipientId: String,
-    recipientName: String,
-    onChatReady: (chatId: String, recipientName: String) -> Unit
-) {
-    val db = FirebaseDatabase.getInstance().reference
-    val chatId = if (myUserId < recipientId) "${myUserId}_$recipientId" else "${recipientId}_$myUserId"
-    val chatDataForMe = ChatMessage(
-        profilePic = R.drawable.profile2,
-        senderName = recipientName,
-        content = "",
-        timestamp = "",
-        isNew = false,
-        chatId = chatId
-    )
-    val chatDataForThem = ChatMessage(
-        profilePic = R.drawable.profile2,
-        senderName = myDisplayName,
-        content = "",
-        timestamp = "",
-        isNew = false,
-        chatId = chatId
-    )
-    db.child("userChats").child(myUserId).child(chatId).setValue(chatDataForMe)
-    db.child("userChats").child(recipientId).child(chatId).setValue(chatDataForThem)
-    onChatReady(chatId, recipientName)
-}
-
 @Composable
-fun ChatScreen(
+fun ChatListScreen(
     chatMessages: List<ChatMessage>,
     onChatClick: (ChatMessage) -> Unit,
     onNewChatClick: () -> Unit
 ) {
-    var search by rememberSaveable { mutableStateOf("") }
-    Column (
-        modifier = Modifier.fillMaxSize()
-    ){
-        Row (
+    var search by remember { mutableStateOf("") }
+    val filteredChats = if (search.isBlank()) chatMessages else chatMessages.filter {
+        it.senderName.contains(search, ignoreCase = true) || it.content.contains(search, ignoreCase = true)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Header
+        Text(
+            text = "Chats",
+            style = TextStyle(
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp
+            ),
+            modifier = Modifier
+                .padding(start = 24.dp, top = 24.dp, bottom = 8.dp)
+        )
+        // Search bar
+        OutlinedTextField(
+            value = search,
+            onValueChange = { search = it },
+            shape = RoundedCornerShape(20.dp),
+            label = { Text("Search chats...") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 15.dp, end = 15.dp),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically
-        ){
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                shape = RoundedCornerShape(15.dp),
-                enabled = true,
-                label = {
-                    Text(
-                        text = "Search... ",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = custom_fontFamily,
-                            fontSize = 15.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(0.67f),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            ExtendedFloatingActionButton(
-                onClick = { /*TODO*/ },
-                modifier = Modifier
-                    .size(50.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.search_icon),
-                    contentDescription = search,
-                    modifier = Modifier
-                        .fillMaxSize()
-                )
-            }
-            Spacer(modifier = Modifier.width(5.dp))
-            ExtendedFloatingActionButton(
-                onClick = onNewChatClick,
-                modifier = Modifier
-                    .size(50.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.new_chat),
-                    contentDescription = search
-                )
-            }
-        }
-        if (chatMessages.isEmpty()) {
+                .padding(horizontal = 16.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        if (filteredChats.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No chats yet. Start a new chat!")
+                Text("No chats yet. Start a new chat!", color = Color.Gray)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 8.dp)
             ) {
-                items(chatMessages) { message ->
-                    ChatItem(message, onClick = { onChatClick(message) })
+                items(filteredChats) { message ->
+                    ChatListItem(message, onClick = { onChatClick(message) })
                 }
             }
         }
@@ -324,87 +285,76 @@ fun ChatScreen(
 }
 
 @Composable
-fun ChatItem(message: ChatMessage, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        shape  = RoundedCornerShape(20.dp),
-        modifier= Modifier
+fun ChatListItem(message: ChatMessage, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White,
-            contentColor = Color.Black
-        )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shadowElevation = if (message.isNew) 4.dp else 1.dp,
+        shape = RoundedCornerShape(16.dp),
+        color = if (message.isNew) Color(0xFFE3F8F3) else Color.White
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(id = message.profilePic),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(55.dp)
-                    .clip(CircleShape),
-                alignment = Alignment.CenterStart
+                    .size(54.dp)
+                    .clip(CircleShape)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ){
-                Column(
-                    modifier = Modifier.padding(start = 16.dp)
-                ) {
-                    Text(
-                        text = message.senderName,
-                        style = TextStyle(
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = message.senderName,
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                )
+                Text(
+                    text = message.content,
+                    style = TextStyle(
+                        fontWeight = if (message.isNew) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 15.sp,
+                        color = if (message.isNew) MaterialTheme.colorScheme.primary else Color.Gray
+                    ),
+                    maxLines = 1
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = message.timestamp,
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = Color(0xFF26A586)
+                    )
+                )
+                if (message.isNew) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF26A586)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "•",
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = custom_fontFamily,
-                            fontSize = 17.sp
+                            fontSize = 16.sp
                         )
-                    )
-                    Text(
-                        text = message.content,
-                        style = TextStyle(
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = custom_fontFamily,
-                            fontSize = 15.sp
-                        )
-                    )
-                }
-                Column (
-                    modifier = Modifier
-                ){
-                    Text(
-                        text = message.timestamp,
-                        color = Color(0xFF26A586),
-                        style = TextStyle(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = custom_fontFamily,
-                            fontSize = 15.sp
-                        )
-                    )
-                    if (message.isNew) {
-                        Box(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .clip(shape = RoundedCornerShape(10.dp))
-                                .align(Alignment.CenterHorizontally)
-                                .background(Color(0xFF26A586), CircleShape)
-                        ){
-                            Text(text = "11",
-                                style = TextStyle(
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = custom_fontFamily,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                ),
-                                modifier = Modifier
-                                    .fillMaxSize()
-                            )
-                        }
                     }
                 }
             }
@@ -430,6 +380,23 @@ fun ChatDetailScreen(chatId: String, senderName: String, onBack: () -> Unit) {
                         val msg = msgSnap.getValue(ChatDetailMessage::class.java)
                         if (msg != null) messages.add(msg)
                     }
+                    // --- Show the initial content of the conversation if no messages exist ---
+                    if (messages.isEmpty()) {
+                        // Find the chat summary from userChats for this chatId
+                        db.child("userChats").child(userId).child(chatId)
+                            .get().addOnSuccessListener { chatSnap ->
+                                val chatData = chatSnap.getValue(ChatMessage::class.java)
+                                if (chatData != null && chatData.content.isNotBlank()) {
+                                    messages.add(
+                                        ChatDetailMessage(
+                                            sender = chatData.senderName,
+                                            text = chatData.content,
+                                            timestamp = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+                            }
+                    }
                 }
                 override fun onCancelled(error: DatabaseError) {}
             })
@@ -438,70 +405,65 @@ fun ChatDetailScreen(chatId: String, senderName: String, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(Color(0xFFF7F7F7))
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
+        // Sticky header
+        Surface(
+            color = MaterialTheme.colorScheme.primary,
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Button(onClick = onBack, modifier = Modifier.padding(end = 8.dp)) {
-                Text("< Back")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                TextButton(onClick = onBack) {
+                    Text("< Back", color = Color.White)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = senderName,
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color.White
+                    )
+                )
             }
-            Text(
-                text = senderName,
-                style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
             reverseLayout = false
         ) {
             items(messages) { msg ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = if (msg.sender == userId) Arrangement.End else Arrangement.Start
-                ) {
-                    Column(
-                        horizontalAlignment = if (msg.sender == userId) Alignment.End else Alignment.Start
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    if (msg.sender == userId) Color(0xFF26A586) else Color(0xFFE0E0E0),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(10.dp)
-                        ) {
-                            Text(
-                                text = msg.text,
-                                color = if (msg.sender == userId) Color.White else Color.Black
-                            )
-                        }
-                        Text(
-                            text = if (msg.sender == userId) "You" else senderName,
-                            style = TextStyle(fontSize = 12.sp, color = Color.Gray),
-                            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp)
-                        )
-                    }
-                }
+                ChatBubble(
+                    message = msg,
+                    isMe = msg.sender == userId,
+                    senderName = if (msg.sender == userId) "You" else senderName
+                )
             }
         }
-        // --- Message input and send button ---
+        // Message input
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
+                .background(Color.White)
+                .padding(8.dp)
         ) {
             OutlinedTextField(
                 value = messageText,
                 onValueChange = { messageText = it },
                 modifier = Modifier.weight(1f),
-                label = { Text("Type a message") }
+                label = { Text("Type a message") },
+                shape = RoundedCornerShape(20.dp),
+                maxLines = 3
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(
@@ -512,10 +474,45 @@ fun ChatDetailScreen(chatId: String, senderName: String, onBack: () -> Unit) {
                         msgRef.setValue(msg)
                         messageText = ""
                     }
-                }
+                },
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Text("Send")
             }
+        }
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatDetailMessage, isMe: Boolean, senderName: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+    ) {
+        Column(
+            horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        if (isMe) Color(0xFF26A586) else Color(0xFFE0E0E0),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = message.text,
+                    color = if (isMe) Color.White else Color.Black,
+                    fontSize = 16.sp
+                )
+            }
+            Text(
+                text = senderName,
+                style = TextStyle(fontSize = 12.sp, color = Color.Gray),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp)
+            )
         }
     }
 }
